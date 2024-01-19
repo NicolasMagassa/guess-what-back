@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const { User } = require("../models");
 const jwt = require('jsonwebtoken');
-const { use } = require('../routers/main.router');
+
 
 const userController = {
 
@@ -24,7 +24,7 @@ const userController = {
         password: encryptedPassword
       });
 
-      res.status(201).json();
+      res.status(201).json({status: 'success'});
     
     }catch(err){
       next(err);
