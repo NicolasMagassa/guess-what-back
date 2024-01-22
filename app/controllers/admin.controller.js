@@ -1,4 +1,4 @@
-const { Theme, Riddle } = require('../models');
+const { Theme, Riddle, Answer } = require('../models');
 
 
 const adminController = {
@@ -9,7 +9,7 @@ const adminController = {
 
 			if (!name){
 				return res.status(400).json({error: "Le champ 'Nom de thème est requis'"})
-			}
+			};
 
 			const theme = await Theme.create({
 				name
@@ -31,7 +31,7 @@ const adminController = {
 
 			if (!existTheme) {
 				return res.status(404).json({error: "Thème non trouvé "});
-			}
+			};
 
 			await existTheme.destroy();
 			res.sendStatus(204);
@@ -47,25 +47,64 @@ const adminController = {
 			const theme_id = req.params.id;
 			const { content, wiki, indicator, answers } = req.body;
 
+			const theme = await Theme.findByPk(theme_id);
+			if (!theme) {
+				return res.status(400).json({ error: "Le thème spécifié n'existe pas." });
+			};
+
 			if (!content || !wiki || !indicator || !answers){
-				return res.status(400).json({error: "Les champ sont requis"})
-			}
+				return res.status(400).json({error: "Tous les champs sont requis"})
+			};
 			
-			
+			const alreadyExistIndicator = await Riddle.findOne({
+        where : {
+            indicator : req.body.indicator
+        }
+			});
 
-			// Vérifier s'il y a bien 5 réponses dans le tableau answers 
-			// vérifier s'il y a bien une bonne réponse dans le tableau
+			if(alreadyExistIndicator) {
+					return res.status(400).json({error : 'Cet indice existe déjà !'})
+			};
+
+			// Vérifier s'il y a bien 5 réponses dans le tableau answers
+			if (answers.length !==5) {
+				return res.status(400).json({error: "Il doit y avoir exactement 5 reponses"}); //(??) ou et le tabelau ? comment le créer  ? 
+			};
+
+
+			// Voir avec Amory pour al contrainte d'unicité sur les réponses
+			/*
+			for (const answer of answers) {
+				const alreadyExistAnswer = await Answer.findOne({
+					where: {
+						content: answer.content
+					},
+				});
+				if(alreadyExistAnswer) {
+					return res.status(400).json({error : 'Une des réponses existe déjà !'})
+				};
+			};*/
+
+			/*const alreadyExistAnswer = await Answer.findOne({
+        where : {
+            content : req.body.content
+        }
+			});*/
+
 			// vérifier si toutes les réponses sont bien formatées (json ?)
+			const validAnswers = answers.every(answer => answer.content && typeof answer.is_good_answer === 'boolean');
 
-      if (answers.length !==5) {
-				return res.status(400).json({error: "il doit y avoir exactement 5 reponses"}); //(??) ou et le tabelau ? comment le créer  ? 
-			}
+			if (!validAnswers) {
+				return res.status(400).json({ error: "Chaque réponse doit avoir une propriété 'content' et 'isCorrect'" });
+			};
 
-			const correctAnswers = answers.filter(answer => answer.isCorrect);// filtrer les reponses correctes
-
+			// vérifier s'il y a bien une bonne réponse dans le tableau
+			const correctAnswers = answers.filter(answer => answer.is_good_answer);// filtrer les reponses correctes
+			
 			if (correctAnswers.length !== 1) {
 				return res.status(400).json({ error: "Il doit y avoir une et une seule bonne réponse" }); // verifier qu'il y ai une seule bonne reponse
-			}
+			};
+
 
 			const riddle = await Riddle.create({
 				content,
@@ -74,6 +113,15 @@ const adminController = {
 				theme_id
 			});
 
+			await Promise.all(
+				answers.map(async (answer) => {
+					await riddle.createAnswer({
+						content: answer.content,
+						is_good_answer: answer.is_good_answer,
+					});
+				})
+			);
+	
 			// await riddle.addAnswers(answers);
 			res.status(201).json(riddle);
 		} 
@@ -83,23 +131,32 @@ const adminController = {
 			}
 	},
 
+
 	delRiddle: async(req, res) => {
 		try {
 			const riddleId = req.params.id;
-			const existRiddle = await Riddle.findByPk(riddleId);
+			const riddle = await Riddle.findByPk(riddleId, {
+				include: 'answers'
+			});
 
-			if (!existRiddle) {
-				return res.status(404).json({error: "Devinette non trouvé "});
-			}
+			if (!riddle) {
+				return res.status(404).json({error: "Cette devinette a déjà été supprimé"});
+			};
 
-			await existRiddle.destroy();
+			await Promise.all(
+				riddle.answers.map(
+					answer => answer.destroy()
+				)
+			);
+
+			await riddle.destroy();
 			res.sendStatus(204);
 		} 
 		catch (error) {
 			console.error(error);
 			res.status(500).json({ error: "Erreur lors de la récupération des Devinette"});
 		}
-	},
+	}	
 };
 
 
