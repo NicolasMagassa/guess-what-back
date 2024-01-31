@@ -1,3 +1,4 @@
+const { parse } = require('dotenv');
 const { Play, User, Theme } = require('../models'); // on va chercher le model play pour les score en BDD
 const { Sequelize } = require('sequelize');
 
@@ -5,7 +6,22 @@ const playingController = {
   async getUserPlayHistory (req, res){ 
     try {
       const user_id = req.user.id; // Récupère l'ID de l'utilisateur depuis les données du token JWT
+      const userId = parseInt(req.params.id, 10);
 
+      console.log('UserID from Token:', typeof user_id, user_id);
+      console.log('UserID from Route:', typeof userId, userId);
+
+      // Vérification si l'utilisateur avec l'ID spécifié existe en BDD
+      const existingUser = await User.findByPk(userId);
+
+      if (!existingUser) {
+        return res.status(404).json({ error: 'Utilisateur non trouvé' });
+      }
+
+      if (user_id !== userId) {
+        return res.status(403).json({ error: 'Accès non autorisé à l\'historique de jeu de cet utilisateur.' });
+      }
+      
       const gameHistory = await Play.findAll({
         attributes: ['id', 'score', 'errors', 'count_indicators', 'createdAt'],
         include: [{
@@ -17,9 +33,9 @@ const playingController = {
         order: [['createdAt', 'DESC']]
       });
 
-      // if (userScores.length === 0) {
-        // return res.status(404).json({ message: "Aucun score trouvé pour cet utilisateur" });
-     // }
+      if (gameHistory.length === 0) {
+        return res.status(404).json({ message: "Aucun score trouvé pour cet utilisateur" });
+      }
 
       res.json(gameHistory);
     } catch (error) {
@@ -28,14 +44,11 @@ const playingController = {
     }
   },
 
-  
-
     async addPlay(req, res) { 
       try {
         const user_id = req.user.id;
         const  { theme_id, score, errors, count_indicators }  = req.body; // verifier que l'user exist et verifier que le theme existe avec les associations
 
-        // Enregistrement d'un session de Devinette (theme)
         const newPlay = await Play.create({
           score,
           errors,
@@ -43,6 +56,7 @@ const playingController = {
           user_id,
           theme_id
         });
+
 
         res.status(201).json(newPlay);
       } catch (error) {
@@ -77,12 +91,13 @@ const playingController = {
       }
     },
 
-    
     async getAllBestPlayByTheme (req, res) { 
       try {
-        const { theme_id } = req.params
+        const theme_id = req.params.id;
+        console.log('theme_id', theme_id);
         
         const theme = await Theme.findByPk(theme_id);
+        console.log('theme');
 
         if(!theme){
           return res.status(404).json({error: 'Le thème spécifié n\'existe pas'});
@@ -92,13 +107,16 @@ const playingController = {
           attributes: [[Sequelize.fn('MAX', Sequelize.col('score')), 'maxScore'], 'errors', 'count_indicators'],
           include: [{
             model: User,
-            attributes: ['username']
-            }],
+            attributes: ['username'],
+            as: 'player'
+          }],
           where: {
             theme_id
           },
-          order: [['score', 'DESC']]
+          group: ['player.id','Play.errors', 'Play.count_indicators'],
+          order: [['maxScore', 'DESC']]
         })
+        
 
         if (bestPlays.length === 0) {
           return res.status(404).json({ message: "Aucun score trouvé" });
