@@ -6,7 +6,7 @@ const { User } = require("../models");
 
 const isAdmin = async (req, res, next) =>{ //fonction qui vérifie si l'utilisateur actuel a le rôle d'administrateur.
 
-  const id = req.user.id; //extrait l'ID de l'utilisateur à partir de l'objet req.user. 
+  const id = req.user.id; //extrait l'ID de l'utilisateur à partir de l'objet req.user. Récupère l'ID de l'utilisateur depuis les données du token JWT
 
   const user = await User.findByPk(id, {include: 'role'}); //recherche l'utilisateur dans la base de données et inclut 
   //le rôle associé à l'utilisateur
