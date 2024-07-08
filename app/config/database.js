@@ -32,3 +32,4 @@ main();
 
 // exportation de l'instance "Sequelize" permettant à d'autres modules de l'utiliser afin d'intéragir avec la BDD
 module.exports = sequelize;
+
